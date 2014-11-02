@@ -1,25 +1,59 @@
 from sys import exit as sys_exit
-from random import randint
+from random import randint, choice
 import pygame as pg
 
 
+class Building(object):
+    def __init__(self, images, pos):
+        self.img = images["pottingshed"]
+        self.rect = self.img.get_rect(center=pos)
+        
+    def draw(self, surface):
+        surface.blit(self.img, self.rect)
+
+        
+class Tree(object):
+    def __init__(self, images, pos):
+        self.img = images["tree"]
+        self.rect = self.img.get_rect(center=pos)
+
+    def draw(self, surface):
+        surface.blit(self.img, self.rect)
+
+        
 class WorldMap(object):
     def __init__(self, size=(3200, 3200)):
-        tree_img = pg.image.load("tree.png").convert()
-        tree_img.set_colorkey(pg.Color("black"))
-        building_img = pg.image.load("pottingshed.png")
-        building_img.set_colorkey(pg.Color("black"))
+        img_names = ["pottingshed", "tree"]
+        self.images = {}
+        for img_name in img_names:
+            img = pg.image.load("{}.png".format(img_name)).convert()
+            img.set_colorkey(pg.Color("black"))
+            self.images[img_name] = img
+            
         self.surf = pg.Surface(size).convert()
-        self.surf.fill(pg.Color("darkgreen"))
         w, h = size
-        for _ in range(10):
+        self.buildings = []
+        for _ in range(20):
             pos = (randint(50, w - 50), randint(50, h - 50))
-            self.surf.blit(building_img, pos)
-        for _ in range(200):
+            self.buildings.append(Building(self.images, pos))
+        self.trees = []    
+        for _ in range(400):
             pos = (randint(50, w - 50), randint(50, h - 50))
-            self.surf.blit(tree_img, pos)
+            tree = Tree(self.images, pos)
+            self.trees.append(tree)
+        self.blitters = sorted(self.buildings + self.trees, key=lambda x: x.rect.bottom)
 
+    def update(self):
+        for building in self.buildings:
+            building.rect.move_ip(choice((-1, 1)), choice((-1, 1)))
+        self.blitters = sorted(self.blitters, key=lambda x: x.rect.bottom)
+        
+    def draw(self):
+        self.surf.fill(pg.Color("darkgreen"))
+        for blitter in self.blitters:
+            blitter.draw(self.surf)
 
+        
 class Viewport(object):
     """A simple viewport/camera to handle scrolling and zooming a surface."""
 
@@ -87,8 +121,10 @@ class Viewport(object):
                 self.zoom_rect = self.get_zoom_rect(mapx, mapy)
                 self.zoom_image()
 
-    def update(self):
+    def update(self, surface=None):
         """Check for scrolling each frame."""
+        if surface:
+            self.base_map = surface
         mouse_pos = pg.mouse.get_pos()
         offset = [0, 0]
         if mouse_pos[0] < self.scroll_margin:
@@ -115,7 +151,7 @@ class Game(object):
         self.done = False
         self.world_map = WorldMap()
         self.viewport = Viewport(self.world_map.surf)
-
+        
     def event_loop(self):
         for event in pg.event.get():
             if event.type == pg.QUIT:
@@ -126,9 +162,12 @@ class Game(object):
                 self.viewport.get_event(event)
 
     def update(self):
-        self.viewport.update()
+        self.world_map.update()
+        self.world_map.draw()
+        self.viewport.update(self.world_map.surf)
 
     def draw(self):
+        
         self.viewport.draw(self.screen)
 
     def run(self):
@@ -140,6 +179,8 @@ class Game(object):
             self.clock.tick(self.fps)
             pg.display.set_caption("FPS: {}".format(self.clock.get_fps()))
 
+            
+            
 if __name__ == "__main__":
     pg.init()
     game = Game()
